@@ -9,10 +9,33 @@ import android.content.DialogInterface;
 import android.content.DialogInterface.OnCancelListener;
 
 public class SpinnerDialog implements Runnable,OnCancelListener {
+    /**
+     * Moonlight Launcher: lets the embedding app replace the progress dialog with its own
+     * (e.g. full-screen) view. Returning null keeps the default dialog.
+     */
+    public interface Overlay {
+        void show();
+        void setMessage(String message);
+        void dismiss();
+        boolean isShowing();
+    }
+
+    public interface OverlayFactory {
+        Overlay create(Activity activity, String title, String message, boolean cancelable, Runnable onCancel);
+    }
+
+    private static volatile OverlayFactory overlayFactory;
+
+    public static void setOverlayFactory(OverlayFactory factory) {
+        overlayFactory = factory;
+    }
+
     private final String title;
     private final String message;
     private final Activity activity;
     private ProgressDialog progress;
+    private Overlay overlay;
+    private boolean created;
     private final boolean finish;
 
     private static final ArrayList<SpinnerDialog> rundownDialogs = new ArrayList<>();
@@ -41,7 +64,12 @@ public class SpinnerDialog implements Runnable,OnCancelListener {
                 SpinnerDialog dialog = i.next();
                 if (dialog.activity == activity) {
                     i.remove();
-                    if (dialog.progress.isShowing()) {
+                    if (dialog.overlay != null) {
+                        if (dialog.overlay.isShowing()) {
+                            dialog.overlay.dismiss();
+                        }
+                    }
+                    else if (dialog.progress.isShowing()) {
                         dialog.progress.dismiss();
                     }
                 }
@@ -60,7 +88,12 @@ public class SpinnerDialog implements Runnable,OnCancelListener {
         activity.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                progress.setMessage(message);
+                if (overlay != null) {
+                    overlay.setMessage(message);
+                }
+                else if (progress != null) {
+                    progress.setMessage(message);
+                }
             }
         });
     }
@@ -73,8 +106,40 @@ public class SpinnerDialog implements Runnable,OnCancelListener {
             return;
         }
 
-        if (progress == null)
+        if (!created && overlayFactory != null)
         {
+            Overlay o = null;
+            try {
+                o = overlayFactory.create(activity, title, message, finish, new Runnable() {
+                    @Override
+                    public void run() {
+                        onCancel(null);
+                    }
+                });
+            } catch (RuntimeException ignored) {
+            }
+            if (o != null) {
+                created = true;
+                overlay = o;
+                synchronized (rundownDialogs) {
+                    rundownDialogs.add(this);
+                    overlay.show();
+                }
+                return;
+            }
+        }
+
+        if (overlay != null)
+        {
+            synchronized (rundownDialogs) {
+                if (rundownDialogs.remove(this) && overlay.isShowing()) {
+                    overlay.dismiss();
+                }
+            }
+        }
+        else if (progress == null)
+        {
+            created = true;
             progress = new ProgressDialog(activity);
 
             progress.setTitle(title);
