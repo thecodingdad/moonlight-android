@@ -497,7 +497,15 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
                 }
                 else if (prefConfig.multiController && devContext.hasJoystickAxes) {
                     LimeLog.info("Reserving the next available controller number");
+                    // Moonlight Launcher: a preferred slot wins; other pads skip slots preferred by others
+                    Integer preferred = devContext.overrides != null ? devContext.overrides.playerSlot : null;
                     for (short i = 0; i < MAX_GAMEPADS; i++) {
+                        if (preferred != null && preferred >= 0 && preferred < MAX_GAMEPADS && (currentControllers & (1 << preferred)) == 0) {
+                            i = (short) (int) preferred;
+                        }
+                        else if (preferred == null && ControllerOverrides.slotPreferredByOther(i, devContext.inputDevice)) {
+                            continue;
+                        }
                         if ((currentControllers & (1 << i)) == 0) {
                             // Found an unused controller value
                             currentControllers |= (1 << i);
@@ -714,6 +722,36 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         }
     }
 
+    // Moonlight Launcher: effective values with per-controller overrides.
+    private double deadzoneFor(GenericControllerContext context) {
+        if (context.overrides != null && context.overrides.deadzonePercent != null) {
+            return context.overrides.deadzonePercent / 100.0;
+        }
+        return stickDeadzone;
+    }
+
+    private boolean flipFaceButtonsFor(GenericControllerContext context) {
+        if (context.overrides != null && context.overrides.flipFaceButtons != null) {
+            return context.overrides.flipFaceButtons;
+        }
+        return prefConfig.flipFaceButtons;
+    }
+
+    private boolean touchpadAsMouseFor(GenericControllerContext context) {
+        if (context.overrides != null && context.overrides.touchpadAsMouse != null) {
+            return context.overrides.touchpadAsMouse;
+        }
+        return prefConfig.gamepadTouchpadAsMouse;
+    }
+
+    private static short scaleRumble(GenericControllerContext context, short motor) {
+        if (context.overrides == null || context.overrides.rumblePercent == null) {
+            return motor;
+        }
+        int percent = Math.max(0, Math.min(100, context.overrides.rumblePercent));
+        return (short) (((motor & 0xFFFF) * percent) / 100);
+    }
+
     private InputDeviceContext createInputDeviceContextForDevice(InputDevice dev) {
         InputDeviceContext context = new InputDeviceContext();
         String devName = dev.getName();
@@ -724,6 +762,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         LimeLog.info(dev.toString());
 
         context.inputDevice = dev;
+        context.overrides = ControllerOverrides.get(dev);
         context.name = devName;
         context.id = dev.getId();
         context.external = isExternal(dev);
@@ -778,7 +817,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         if ((Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ||
                 (Build.VERSION.SDK_INT == Build.VERSION_CODES.S &&
                         (context.vendorId == 0x054c || context.vendorId == 0x057e))) && // Sony or Nintendo
-                prefConfig.gamepadMotionSensors) {
+                (context.overrides != null && context.overrides.motionSensors != null ? context.overrides.motionSensors : prefConfig.gamepadMotionSensors)) {
             if (dev.getSensorManager().getDefaultSensor(Sensor.TYPE_ACCELEROMETER) != null || dev.getSensorManager().getDefaultSensor(Sensor.TYPE_GYROSCOPE) != null) {
                 context.sensorManager = dev.getSensorManager();
             }
@@ -917,11 +956,11 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         }
 
         if (context.leftStickXAxis != -1 && context.leftStickYAxis != -1) {
-            context.leftStickDeadzoneRadius = (float) stickDeadzone;
+            context.leftStickDeadzoneRadius = (float) deadzoneFor(context);
         }
 
         if (context.rightStickXAxis != -1 && context.rightStickYAxis != -1) {
-            context.rightStickDeadzoneRadius = (float) stickDeadzone;
+            context.rightStickDeadzoneRadius = (float) deadzoneFor(context);
         }
 
         if (context.leftTriggerAxis != -1 && context.rightTriggerAxis != -1) {
@@ -1830,7 +1869,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
                     break;
             }
 
-            return !prefConfig.gamepadTouchpadAsMouse;
+            return !touchpadAsMouseFor(context);
         }
 
         byte touchType;
@@ -1866,7 +1905,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && event.getActionButton() == MotionEvent.BUTTON_PRIMARY) {
                     context.inputMap |= ControllerPacket.TOUCHPAD_FLAG;
                     sendControllerInputPacket(context);
-                    return !prefConfig.gamepadTouchpadAsMouse; // Report as unhandled event to trigger mouse handling
+                    return !touchpadAsMouseFor(context); // Report as unhandled event to trigger mouse handling
                 }
                 return false;
 
@@ -1874,7 +1913,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && event.getActionButton() == MotionEvent.BUTTON_PRIMARY) {
                     context.inputMap &= ~ControllerPacket.TOUCHPAD_FLAG;
                     sendControllerInputPacket(context);
-                    return !prefConfig.gamepadTouchpadAsMouse; // Report as unhandled event to trigger mouse handling
+                    return !touchpadAsMouseFor(context); // Report as unhandled event to trigger mouse handling
                 }
                 return false;
 
@@ -1887,7 +1926,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         // NB: We do this after processing ACTION_BUTTON_PRESS and ACTION_BUTTON_RELEASE
         // because we want to still send the touchpad button via the gamepad even when
         // configured to use the touchpad for mouse control.
-        if (prefConfig.gamepadTouchpadAsMouse) {
+        if (touchpadAsMouseFor(context)) {
             return false;
         }
 
@@ -2176,8 +2215,8 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             if (deviceContext.controllerNumber == controllerNumber) {
                 foundMatchingDevice = true;
 
-                deviceContext.lowFreqMotor = lowFreqMotor;
-                deviceContext.highFreqMotor = highFreqMotor;
+                deviceContext.lowFreqMotor = scaleRumble(deviceContext, lowFreqMotor);
+                deviceContext.highFreqMotor = scaleRumble(deviceContext, highFreqMotor);
 
                 // Prefer the documented Android 12 rumble API which can handle dual vibrators on PS/Xbox controllers
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && deviceContext.vibratorManager != null) {
@@ -2469,7 +2508,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             return (keyCode == REMAP_CONSUME);
         }
 
-        if (prefConfig.flipFaceButtons) {
+        if (flipFaceButtonsFor(context)) {
             keyCode = handleFlipFaceButtons(keyCode);
         }
 
@@ -2716,7 +2755,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             return (keyCode == REMAP_CONSUME);
         }
 
-        if (prefConfig.flipFaceButtons) {
+        if (flipFaceButtonsFor(context)) {
             keyCode = handleFlipFaceButtons(keyCode);
         }
 
@@ -3042,6 +3081,9 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         public boolean assignedControllerNumber;
         public boolean reservedControllerNumber;
         public short controllerNumber;
+
+        // Moonlight Launcher: per-controller overrides (null = global settings)
+        public ControllerOverrides.Override overrides;
 
         public int inputMap = 0;
         public byte leftTrigger = 0x00;
