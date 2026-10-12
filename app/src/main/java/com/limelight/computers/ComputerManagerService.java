@@ -62,6 +62,8 @@ public class ComputerManagerService extends Service {
     private ComputerManagerListener listener = null;
     private final AtomicInteger activePolls = new AtomicInteger(0);
     private boolean pollingActive = false;
+    // Embedding apps may run mDNS discovery only on demand instead of with every polling start
+    private boolean discoveryWithPolling = true;
     private final Lock defaultNetworkLock = new ReentrantLock();
 
     private ConnectivityManager.NetworkCallback networkCallback;
@@ -202,7 +204,9 @@ public class ComputerManagerService extends Service {
             ComputerManagerService.this.listener = listener;
 
             // Start mDNS autodiscovery too
-            discoveryBinder.startDiscovery(MDNS_QUERY_PERIOD_MS);
+            if (discoveryWithPolling) {
+                discoveryBinder.startDiscovery(MDNS_QUERY_PERIOD_MS);
+            }
 
             synchronized (pollingTuples) {
                 for (PollingTuple tuple : pollingTuples) {
@@ -263,6 +267,19 @@ public class ComputerManagerService extends Service {
 
         public void removeComputer(ComputerDetails computer) {
             ComputerManagerService.this.removeComputer(computer);
+        }
+
+        // For embedding apps: switches mDNS discovery on or off independently of polling (jmDNS
+        // caches every record it hears, so it should only run while new hosts are looked for).
+        // After the first call, startPolling() no longer starts discovery by itself.
+        public void setDiscoveryActive(boolean active) {
+            discoveryWithPolling = false;
+            if (active) {
+                discoveryBinder.startDiscovery(MDNS_QUERY_PERIOD_MS);
+            }
+            else {
+                discoveryBinder.stopDiscovery();
+            }
         }
 
         public void stopPolling() {
