@@ -3559,8 +3559,26 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         }
     }
 
+    /** Whether the host runs no game any more (asked twice: it may take a moment to notice). */
+    private boolean hostGameEnded() {
+        if (httpConn == null) return false;
+        for (int attempt = 0; attempt < 2; attempt++) {
+            try {
+                if (httpConn.getCurrentGame(httpConn.getServerInfo(true)) == 0) return true;
+                Thread.sleep(1000);
+            } catch (Exception e) {
+                return false;
+            }
+        }
+        return false;
+    }
+
     @Override
-    public void connectionTerminated(final int errorCode) {
+    public void connectionTerminated(final int reportedErrorCode) {
+        // The host closed the session without a reason (Vibepollo does when the game on it exits):
+        // with no game running there any more, it was quit on the host, not a lost connection.
+        final int errorCode = reportedErrorCode == -1 && hostGameEnded() ? MoonBridge.ML_ERROR_GRACEFUL_TERMINATION : reportedErrorCode;
+
         // Perform a connection test if the failure could be due to a blocked port
         // This does network I/O, so don't do it on the main thread.
         final int portFlags = MoonBridge.getPortFlagsFromTerminationErrorCode(errorCode);
