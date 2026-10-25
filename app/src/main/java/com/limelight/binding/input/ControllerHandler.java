@@ -1333,8 +1333,26 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
 
             originalContext.mouseEmulationLastInputMap = inputMap;
 
+            // Embedded: the same buttons as the app's own mouse and Moonlight-Qt (X middle click,
+            // LB / RB back / forward); speed is a setting there, so no step mode or multiplier.
+            boolean embeddedMouse = !com.limelight.StreamControl.builtInCombos;
+            if (embeddedMouse) {
+                if ((changedMask & ControllerPacket.X_FLAG) != 0) {
+                    if (xDown) conn.sendMouseButtonDown(MouseButtonPacket.BUTTON_MIDDLE);
+                    else conn.sendMouseButtonUp(MouseButtonPacket.BUTTON_MIDDLE);
+                }
+                if ((changedMask & ControllerPacket.LB_FLAG) != 0) {
+                    if ((inputMap & ControllerPacket.LB_FLAG) != 0) conn.sendMouseButtonDown(MouseButtonPacket.BUTTON_X1);
+                    else conn.sendMouseButtonUp(MouseButtonPacket.BUTTON_X1);
+                }
+                if ((changedMask & ControllerPacket.RB_FLAG) != 0) {
+                    if ((inputMap & ControllerPacket.RB_FLAG) != 0) conn.sendMouseButtonDown(MouseButtonPacket.BUTTON_X2);
+                    else conn.sendMouseButtonUp(MouseButtonPacket.BUTTON_X2);
+                }
+            }
+
             // Set the flag for the fixed pixel mouse movement while X_FLAG button is pressed
-            if((changedMask & ControllerPacket.X_FLAG) != 0)
+            if(!embeddedMouse && (changedMask & ControllerPacket.X_FLAG) != 0)
             {
                 // Set true when pressed
                 if( xDown ) {
@@ -1347,7 +1365,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
                 }
             }
 
-            if((changedMask & ControllerPacket.Y_FLAG) != 0)
+            if(!embeddedMouse && (changedMask & ControllerPacket.Y_FLAG) != 0)
             {
                 if( yDown )
                 {
