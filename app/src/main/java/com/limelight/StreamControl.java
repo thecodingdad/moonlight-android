@@ -18,6 +18,9 @@ public final class StreamControl {
      */
     public static volatile boolean builtInCombos = true;
 
+    /** Shown instead of Artemis' game menu when set (the embedding app's own menu). */
+    public static volatile Runnable menuAction;
+
     /**
      * Mouse emulation of every controller, set by the embedding app (also for controllers that
      * appear later and for the next stream). Its pointer speed in host pixels per second at full

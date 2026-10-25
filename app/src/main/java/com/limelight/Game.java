@@ -4298,6 +4298,12 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
     @Override
     public void showGameMenu(GameInputDevice device) {
+        // An embedding app shows its own menu instead (back button, five-finger tap, floating button).
+        Runnable embedded = StreamControl.menuAction;
+        if (embedded != null) {
+            embedded.run();
+            return;
+        }
         if(isOnExternalDisplay()) {
             ExternalDisplayControlActivity.toggleGameMenu();
         } else {
