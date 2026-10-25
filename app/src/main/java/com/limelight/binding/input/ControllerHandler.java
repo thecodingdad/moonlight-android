@@ -61,6 +61,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
     private static final int MAXIMUM_BUMPER_UP_DELAY_MS = 100;
 
     private static final int START_DOWN_TIME_MOUSE_MODE_MS = 750;
+    private static final int EMBEDDED_MOUSE_PERIOD_MS = 10;
 
     private static final int MINIMUM_BUTTON_DOWN_TIME_MS = 25;
 
@@ -113,10 +114,18 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
 
     private final SparseArray<InputDeviceContext> inputDeviceContexts = new SparseArray<>();
 
-    /** Mouse emulation of controller [deviceId] on or off (the first context if it sent nothing yet). */
-    public void toggleMouseEmulation(int deviceId) {
-        InputDeviceContext context = inputDeviceContexts.get(deviceId);
-        (context != null ? context : defaultContext).toggleMouseEmulation();
+    /** Mouse emulation of every controller on or off (embedding apps, see StreamControl). */
+    public void setMouseEmulation(boolean on) {
+        if (defaultContext.mouseEmulationActive != on) defaultContext.toggleMouseEmulation(false);
+        for (int i = 0; i < inputDeviceContexts.size(); i++) {
+            InputDeviceContext context = inputDeviceContexts.valueAt(i);
+            if (context.mouseEmulationActive != on) context.toggleMouseEmulation(false);
+        }
+    }
+
+    /** A new controller follows the embedding app's mouse emulation. */
+    private void applyEmbeddedMouse(InputDeviceContext context) {
+        if (com.limelight.StreamControl.mouseEmulation && !context.mouseEmulationActive) context.toggleMouseEmulation(false);
     }
     private final SparseArray<UsbDeviceContext> usbDeviceContexts = new SparseArray<>();
 
@@ -550,6 +559,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
                         if (associatedDeviceContext == null) {
                             associatedDeviceContext = createInputDeviceContextForDevice(associatedDevice);
                             inputDeviceContexts.put(associatedDevice.getId(), associatedDeviceContext);
+                            applyEmbeddedMouse(associatedDeviceContext);
                         }
 
                         // Assign a controller number for the associated device if one isn't assigned
@@ -1092,6 +1102,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         // Otherwise create a new context
         context = createInputDeviceContextForDevice(event.getDevice());
         inputDeviceContexts.put(event.getDeviceId(), context);
+        applyEmbeddedMouse(context);
 
         return context;
     }
@@ -3117,20 +3128,20 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
                 if (prefConfig.analogStickForScrolling == PreferenceConfiguration.AnalogStickForScrolling.RIGHT) {
 
                     // Changed absolute value
-                    sendEmulatedMouseMove(leftStickX, leftStickY, mouseEmulationXDown, mouseEmulationPixelMultiplier);
+                    moveMouse(leftStickX, leftStickY);
                     sendEmulatedMouseScroll(rightStickX, rightStickY);
                 }
                 else if (prefConfig.analogStickForScrolling == PreferenceConfiguration.AnalogStickForScrolling.LEFT) {
-                    sendEmulatedMouseMove(rightStickX, rightStickY, mouseEmulationXDown, mouseEmulationPixelMultiplier);
+                    moveMouse(rightStickX, rightStickY);
                     sendEmulatedMouseScroll(leftStickX, leftStickY);
                 }
                 else {
-                    sendEmulatedMouseMove(leftStickX, leftStickY, mouseEmulationXDown, mouseEmulationPixelMultiplier);
-                    sendEmulatedMouseMove(rightStickX, rightStickY, mouseEmulationXDown, mouseEmulationPixelMultiplier);
+                    moveMouse(leftStickX, leftStickY);
+                    moveMouse(rightStickX, rightStickY);
                 }
 
                 // Requeue the callback
-                mainThreadHandler.postDelayed(this, mouseEmulationReportPeriod);
+                mainThreadHandler.postDelayed(this, reportPeriod());
             }
         };
 
@@ -3145,12 +3156,47 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         }
 
         public void toggleMouseEmulation() {
+            toggleMouseEmulation(true);
+        }
+
+        public void toggleMouseEmulation(boolean notice) {
             mainThreadHandler.removeCallbacks(mouseEmulationRunnable);
             mouseEmulationActive = !mouseEmulationActive;
-            Toast.makeText(activityContext, "Mouse emulation is: " + (mouseEmulationActive ? "ON" : "OFF"), Toast.LENGTH_SHORT).show();
+            mouseRestX = 0;
+            mouseRestY = 0;
+            if (notice) {
+                Toast.makeText(activityContext, "Mouse emulation is: " + (mouseEmulationActive ? "ON" : "OFF"), Toast.LENGTH_SHORT).show();
+            }
 
             if (mouseEmulationActive) {
-                mainThreadHandler.postDelayed(mouseEmulationRunnable, mouseEmulationReportPeriod);
+                mainThreadHandler.postDelayed(mouseEmulationRunnable, reportPeriod());
+            }
+        }
+
+        /** Embedded (the app owns the combos): a smooth rate and its speed curve. */
+        private int reportPeriod() {
+            return com.limelight.StreamControl.builtInCombos ? mouseEmulationReportPeriod : EMBEDDED_MOUSE_PERIOD_MS;
+        }
+
+        private float mouseRestX, mouseRestY;
+
+        private void moveMouse(short x, short y) {
+            if (com.limelight.StreamControl.builtInCombos || mouseEmulationXDown) {
+                sendEmulatedMouseMove(x, y, mouseEmulationXDown, mouseEmulationPixelMultiplier);
+                return;
+            }
+            double nx = x / 32766.0, ny = -y / 32766.0;
+            double magnitude = Math.min(1.0, Math.hypot(nx, ny));
+            if (magnitude < 0.02) return;
+            double perSecond = com.limelight.StreamControl.mouseSpeed * Math.pow(magnitude, com.limelight.StreamControl.mouseExponent);
+            double step = perSecond * EMBEDDED_MOUSE_PERIOD_MS / 1000.0 / magnitude;
+            mouseRestX += (float) (nx * step);
+            mouseRestY += (float) (ny * step);
+            short dx = (short) mouseRestX, dy = (short) mouseRestY;
+            if (dx != 0 || dy != 0) {
+                mouseRestX -= dx;
+                mouseRestY -= dy;
+                conn.sendMouseMove(dx, dy);
             }
         }
 

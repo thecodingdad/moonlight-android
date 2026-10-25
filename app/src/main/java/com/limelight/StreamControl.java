@@ -18,10 +18,20 @@ public final class StreamControl {
      */
     public static volatile boolean builtInCombos = true;
 
-    /** Toggles mouse emulation of the controller [deviceId] in the running stream; false without one. */
-    public static boolean toggleMouseEmulation(int deviceId) {
+    /**
+     * Mouse emulation of every controller, set by the embedding app (also for controllers that
+     * appear later and for the next stream). Its pointer speed in host pixels per second at full
+     * stick deflection, and the curve exponent (higher: slower near the centre).
+     */
+    public static volatile boolean mouseEmulation;
+    public static volatile float mouseSpeed = 1200f;
+    public static volatile float mouseExponent = 2.4f;
+
+    /** Switches [mouseEmulation] and applies it to the running stream. */
+    public static void setMouseEmulation(boolean on) {
+        mouseEmulation = on;
         Game game = Game.instance;
-        return game != null && game.toggleMouseEmulation(deviceId);
+        if (game != null) game.applyMouseEmulation(on);
     }
 
     /** Shows or hides the performance overlay of the running stream; false without one. */
