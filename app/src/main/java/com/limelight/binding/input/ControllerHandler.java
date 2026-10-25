@@ -3143,7 +3143,9 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
                 }
 
                 // Send mouse events from analog sticks
-                if (prefConfig.analogStickForScrolling == PreferenceConfiguration.AnalogStickForScrolling.RIGHT) {
+                // Embedded: always the app's layout (left stick moves, right stick scrolls).
+                if (!com.limelight.StreamControl.builtInCombos ||
+                        prefConfig.analogStickForScrolling == PreferenceConfiguration.AnalogStickForScrolling.RIGHT) {
 
                     // Changed absolute value
                     moveMouse(leftStickX, leftStickY);
