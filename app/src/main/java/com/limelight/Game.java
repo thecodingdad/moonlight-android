@@ -4260,6 +4260,12 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         finish();
     }
 
+    /** Quits the app on the host and ends the stream, without asking (embedding apps' own menus). */
+    public void quitWithoutConfirmation() {
+        quitOnStop = true;
+        finish();
+    }
+
     public void quit() {
         Context context;
         if (isOnExternalDisplay() && ExternalDisplayControlActivity.instance != null) {

@@ -1771,7 +1771,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
         // Flip stats windows roughly every second
         if (SystemClock.uptimeMillis() >= activeWindowVideoStats.measurementStartTimestamp + 1000) {
-            if (prefs.enablePerfOverlay || prefs.enablePerfLogging) {
+            com.limelight.StreamControl.PerfListener embedded = com.limelight.StreamControl.perfListener;
+            if (prefs.enablePerfOverlay || prefs.enablePerfLogging || embedded != null) {
                 VideoStats lastTwo = new VideoStats();
                 lastTwo.add(lastWindowVideoStats);
                 lastTwo.add(activeWindowVideoStats);
@@ -1878,6 +1879,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                 String fullLog = sb.toString();
                 if(prefs.enablePerfOverlay) {
                     perfListener.onPerfUpdate(fullLog);
+                }
+                if (embedded != null) {
+                    embedded.onPerfUpdate(fullLog);
                 }
                 // Best latency is only met at requested highest fps, rest can be ignored
                 Boolean targetFpsMatched = ((int) fps.totalFps == (int) prefs.fps);
