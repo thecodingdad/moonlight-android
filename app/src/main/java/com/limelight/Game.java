@@ -4234,6 +4234,13 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         updateZoomButtonAppearance();
     }
 
+    /** Mouse emulation of one controller on or off (embedding apps, see StreamControl). */
+    public boolean toggleMouseEmulation(int deviceId) {
+        if (controllerHandler == null) return false;
+        runOnUiThread(() -> controllerHandler.toggleMouseEmulation(deviceId));
+        return true;
+    }
+
     public void toggleHUD() {
         prefConfig.enablePerfOverlay = !prefConfig.enablePerfOverlay;
         if (prefConfig.enablePerfOverlay) {

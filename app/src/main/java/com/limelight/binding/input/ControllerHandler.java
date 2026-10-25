@@ -112,6 +112,12 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
     private final Vector2d inputVector = new Vector2d();
 
     private final SparseArray<InputDeviceContext> inputDeviceContexts = new SparseArray<>();
+
+    /** Mouse emulation of controller [deviceId] on or off (the first context if it sent nothing yet). */
+    public void toggleMouseEmulation(int deviceId) {
+        InputDeviceContext context = inputDeviceContexts.get(deviceId);
+        (context != null ? context : defaultContext).toggleMouseEmulation();
+    }
     private final SparseArray<UsbDeviceContext> usbDeviceContexts = new SparseArray<>();
 
     private final NvConnection conn;
@@ -2542,7 +2548,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             // Sometimes we'll get a spurious key up event on controller disconnect.
             // Make sure it's real by checking that the key is actually down before taking
             // any action.
-            if ((context.inputMap & ControllerPacket.PLAY_FLAG) != 0 &&
+            if (com.limelight.StreamControl.builtInCombos && (context.inputMap & ControllerPacket.PLAY_FLAG) != 0 &&
                     context.startUpTime - context.startDownTime > ControllerHandler.START_DOWN_TIME_MOUSE_MODE_MS) {
                 if (prefConfig.enableBackMenu && context.backMenuPending){
                     //todo 展示快捷菜单
@@ -2917,7 +2923,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         }
 
         // Start+Back+LB+RB is the quit combo
-        if (context.inputMap == (ControllerPacket.BACK_FLAG | ControllerPacket.PLAY_FLAG |
+        if (com.limelight.StreamControl.builtInCombos && context.inputMap == (ControllerPacket.BACK_FLAG | ControllerPacket.PLAY_FLAG |
                                  ControllerPacket.LB_FLAG | ControllerPacket.RB_FLAG)) {
             // Wait for the combo to lift and then finish the activity
             context.pendingExit = true;
