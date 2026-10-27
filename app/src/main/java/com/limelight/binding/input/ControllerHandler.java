@@ -61,7 +61,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
     private static final int MAXIMUM_BUMPER_UP_DELAY_MS = 100;
 
     private static final int START_DOWN_TIME_MOUSE_MODE_MS = 750;
-    private static final int EMBEDDED_MOUSE_PERIOD_MS = 4;
+    private static final int EMBEDDED_MOUSE_PERIOD_MS = 2;
 
     private static final int MINIMUM_BUTTON_DOWN_TIME_MS = 25;
 
@@ -3128,7 +3128,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         public short leftStickX = 0x0000;
         public short leftStickY = 0x0000;
 
-        public boolean mouseEmulationActive;
+        public volatile boolean mouseEmulationActive;
         public boolean mouseEmulationXDown = false;
         public int mouseEmulationPixelMultiplier = 1;
 
@@ -3165,7 +3165,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
                 }
 
                 // Requeue the callback
-                mainThreadHandler.postDelayed(this, reportPeriod());
+                mouseHandler().postDelayed(this, reportPeriod());
             }
         };
 
@@ -3184,7 +3184,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         }
 
         public void toggleMouseEmulation(boolean notice) {
-            mainThreadHandler.removeCallbacks(mouseEmulationRunnable);
+            mouseHandler().removeCallbacks(mouseEmulationRunnable);
             mouseEmulationActive = !mouseEmulationActive;
             mouseRestX = 0;
             mouseRestY = 0;
@@ -3194,7 +3194,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             }
 
             if (mouseEmulationActive) {
-                mainThreadHandler.postDelayed(mouseEmulationRunnable, reportPeriod());
+                mouseHandler().postDelayed(mouseEmulationRunnable, reportPeriod());
             }
         }
 
@@ -3204,6 +3204,18 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         }
 
         private float mouseRestX, mouseRestY;
+        // The pointer moves on its own thread: on the main thread (input, UI) its steps came unevenly.
+        private HandlerThread mouseThread;
+        private Handler mouseHandler;
+
+        private Handler mouseHandler() {
+            if (mouseThread == null) {
+                mouseThread = new HandlerThread("mouse-emulation", android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY);
+                mouseThread.start();
+                mouseHandler = new Handler(mouseThread.getLooper());
+            }
+            return mouseHandler;
+        }
         private long mouseLastNanos;
         private double mouseElapsed;
 
@@ -3229,7 +3241,11 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
 
         public void destroy() {
             mouseEmulationActive = false;
-            mainThreadHandler.removeCallbacks(mouseEmulationRunnable);
+            if (mouseThread != null) {
+                mouseHandler.removeCallbacks(mouseEmulationRunnable);
+                mouseThread.quitSafely();
+                mouseThread = null;
+            }
         }
 
         public void sendControllerArrival() {}
