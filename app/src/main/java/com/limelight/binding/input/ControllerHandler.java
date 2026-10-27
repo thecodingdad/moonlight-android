@@ -61,7 +61,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
     private static final int MAXIMUM_BUMPER_UP_DELAY_MS = 100;
 
     private static final int START_DOWN_TIME_MOUSE_MODE_MS = 750;
-    private static final int EMBEDDED_MOUSE_PERIOD_MS = 10;
+    private static final int EMBEDDED_MOUSE_PERIOD_MS = 4;
 
     private static final int MINIMUM_BUTTON_DOWN_TIME_MS = 25;
 
@@ -3141,6 +3141,10 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
                 if (!mouseEmulationActive) {
                     return;
                 }
+                // By the time that really passed: a late run (busy main thread) must not slow the pointer.
+                long now = System.nanoTime();
+                mouseElapsed = Math.min(0.05, (now - mouseLastNanos) / 1e9);
+                mouseLastNanos = now;
 
                 // Send mouse events from analog sticks
                 // Embedded: always the app's layout (left stick moves, right stick scrolls).
@@ -3184,6 +3188,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             mouseEmulationActive = !mouseEmulationActive;
             mouseRestX = 0;
             mouseRestY = 0;
+            mouseLastNanos = System.nanoTime();
             if (notice) {
                 Toast.makeText(activityContext, "Mouse emulation is: " + (mouseEmulationActive ? "ON" : "OFF"), Toast.LENGTH_SHORT).show();
             }
@@ -3199,6 +3204,8 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         }
 
         private float mouseRestX, mouseRestY;
+        private long mouseLastNanos;
+        private double mouseElapsed;
 
         private void moveMouse(short x, short y) {
             if (com.limelight.StreamControl.builtInCombos || mouseEmulationXDown) {
@@ -3209,7 +3216,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             double magnitude = Math.min(1.0, Math.hypot(nx, ny));
             if (magnitude < 0.02) return;
             double perSecond = com.limelight.StreamControl.mouseSpeed * Math.pow(magnitude, com.limelight.StreamControl.mouseExponent);
-            double step = perSecond * EMBEDDED_MOUSE_PERIOD_MS / 1000.0 / magnitude;
+            double step = perSecond * mouseElapsed / magnitude;
             mouseRestX += (float) (nx * step);
             mouseRestY += (float) (ny * step);
             short dx = (short) mouseRestX, dy = (short) mouseRestY;
