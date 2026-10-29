@@ -45,6 +45,28 @@ public final class StreamControl {
         return true;
     }
 
+    /**
+     * The stream's connection once a second while one runs: round trip time and its variation (ms),
+     * Moonlight's poor-connection verdict (lost frames), audio packets dropped since the last call
+     * and whether the performance overlay shows. Set: Artemis' own connection warning stays off.
+     */
+    public interface QualityListener {
+        void onQuality(int rttMs, int rttVarianceMs, boolean frameLoss, int audioDrops, boolean perfOverlay);
+    }
+
+    public static volatile QualityListener qualityListener;
+
+    private static final java.util.concurrent.atomic.AtomicInteger audioDrops = new java.util.concurrent.atomic.AtomicInteger();
+
+    /** An audio packet was dropped (it came too late or bunched up). */
+    public static void audioDropped() {
+        audioDrops.incrementAndGet();
+    }
+
+    static int takeAudioDrops() {
+        return audioDrops.getAndSet(0);
+    }
+
     private StreamControl() {
     }
 }

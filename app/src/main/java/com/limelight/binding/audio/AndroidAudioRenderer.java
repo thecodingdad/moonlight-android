@@ -196,6 +196,7 @@ public class AndroidAudioRenderer implements AudioRenderer {
         }
         else {
             LimeLog.info("Too much pending audio data: " + MoonBridge.getPendingAudioDuration() +" ms");
+            com.limelight.StreamControl.audioDropped();
         }
     }
 

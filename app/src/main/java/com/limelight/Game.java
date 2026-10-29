@@ -3460,7 +3460,27 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     public void stageComplete(String stage) {
     }
 
+    /** Poor connection from lost frames (Moonlight's verdict), for the embedding app's warning. */
+    private volatile boolean framesLost;
+
+    /** Reports the connection to the embedding app once a second while connected. */
+    private final Runnable qualitySampler = new Runnable() {
+        @Override
+        public void run() {
+            StreamControl.QualityListener listener = StreamControl.qualityListener;
+            if (!connected || listener == null) {
+                return;
+            }
+            long rtt = MoonBridge.getEstimatedRttInfo();
+            if (rtt != -1) {
+                listener.onQuality((int) (rtt >> 32), (int) rtt, framesLost, StreamControl.takeAudioDrops(), prefConfig.enablePerfOverlay);
+            }
+            timerHandler.postDelayed(this, 1000);
+        }
+    };
+
     private void stopConnection() {
+        timerHandler.removeCallbacks(qualitySampler);
         if (connecting || connected) {
             connecting = connected = false;
             updatePipAutoEnter();
@@ -3675,7 +3695,9 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                if (prefConfig.disableWarnings) {
+                framesLost = connectionStatus == MoonBridge.CONN_STATUS_POOR;
+                // The embedding app shows its own connection warning.
+                if (prefConfig.disableWarnings || StreamControl.qualityListener != null) {
                     return;
                 }
 
@@ -3713,6 +3735,11 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 connected = true;
                 connecting = false;
                 updatePipAutoEnter();
+
+                framesLost = false;
+                StreamControl.takeAudioDrops();
+                timerHandler.removeCallbacks(qualitySampler);
+                timerHandler.postDelayed(qualitySampler, 1000);
 
                 // Hide the mouse cursor now after a short delay.
                 // Doing it before dismissing the spinner seems to be undone
