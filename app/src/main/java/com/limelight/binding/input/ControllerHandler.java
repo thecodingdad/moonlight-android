@@ -621,7 +621,13 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
                 }
 
                 // If the gamepad doesn't have motion sensors, use the on-device sensors as a fallback for player 1
-                if (prefConfig.gamepadMotionSensorsFallbackToDevice && context.controllerNumber == 0 && (prefConfig.forceMotionSensorsFallbackToDevice || devContext.sensorManager == null)) {
+                // Moonlight Launcher: a per-controller choice applies whatever player this controller is.
+                if (devContext.overrides != null && devContext.overrides.motionFallback != null) {
+                    if (devContext.overrides.motionFallback && devContext.sensorManager == null) {
+                        devContext.sensorManager = deviceSensorManager;
+                    }
+                }
+                else if (prefConfig.gamepadMotionSensorsFallbackToDevice && context.controllerNumber == 0 && (prefConfig.forceMotionSensorsFallbackToDevice || devContext.sensorManager == null)) {
                     devContext.sensorManager = deviceSensorManager;
                 }
             }
@@ -833,7 +839,8 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         context.hasPaddles = MoonBridge.guessControllerHasPaddles(context.vendorId, context.productId);
         context.hasShare = MoonBridge.guessControllerHasShareButton(context.vendorId, context.productId);
 
-        if (prefConfig.enableDeviceRumble) {
+        // Moonlight Launcher: per-controller choice first.
+        if (context.overrides != null && context.overrides.deviceRumble != null ? context.overrides.deviceRumble : prefConfig.enableDeviceRumble) {
             context.vibrator = deviceVibrator;
         } else {
             // Try to use the InputDevice's associated vibrators first
@@ -2281,6 +2288,8 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
     public void handleRumble(short controllerNumber, short lowFreqMotor, short highFreqMotor) {
         boolean foundMatchingDevice = false;
         boolean vibrated = false;
+        // Moonlight Launcher: the matched controller's own fallback choice, if it has one.
+        ControllerOverrides.Override matchedOverrides = null;
 
         if (stopped) {
             return;
@@ -2291,6 +2300,9 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
 
             if (deviceContext.controllerNumber == controllerNumber) {
                 foundMatchingDevice = true;
+                if (deviceContext.overrides != null) {
+                    matchedOverrides = deviceContext.overrides;
+                }
 
                 deviceContext.lowFreqMotor = scaleRumble(deviceContext, lowFreqMotor);
                 deviceContext.highFreqMotor = scaleRumble(deviceContext, highFreqMotor);
@@ -2329,8 +2341,18 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             }
         }
 
+        // Moonlight Launcher: a controller with its own fallback choice decides for itself, whatever
+        // player it is (the device vibrates instead of a controller without motors).
+        if (matchedOverrides != null && matchedOverrides.vibrateFallback != null) {
+            if (matchedOverrides.vibrateFallback && !vibrated) {
+                int strength = matchedOverrides.deviceRumbleStrength != null ? matchedOverrides.deviceRumbleStrength : 100;
+                short low = (short)(Math.min((((lowFreqMotor & 0xffff) * strength) / 100), Short.MAX_VALUE*2));
+                short high = (short)(Math.min((((highFreqMotor & 0xffff) * strength) / 100), Short.MAX_VALUE*2));
+                rumbleSingleVibrator(deviceVibrator, low, high);
+            }
+        }
         // We may decide to rumble the device for player 1
-        if (controllerNumber == 0) {
+        else if (controllerNumber == 0) {
             // If we didn't find a matching device, it must be the on-screen
             // controls that triggered the rumble. Vibrate the device if
             // the user has requested that behavior.
@@ -3544,7 +3566,8 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             // After reporting arrival to the host, send initial battery state and begin monitoring
             // Might result in stutter in pointer device input. The problem happens within Android framework,
             // Here we can only provide a workaround by disabling this option if user wishes.
-            if (prefConfig.enableBatteryReport) {
+            // Moonlight Launcher: per-controller choice first.
+            if (overrides != null && overrides.batteryReport != null ? overrides.batteryReport : prefConfig.enableBatteryReport) {
                 backgroundThreadHandler.post(batteryStateUpdateRunnable);
             }
         }

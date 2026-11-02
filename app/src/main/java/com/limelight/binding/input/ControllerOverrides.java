@@ -15,6 +15,16 @@ public final class ControllerOverrides {
         public Integer deadzonePercent;
         /** 0 = rumble off, 100 = full strength. */
         public Integer rumblePercent;
+        /** True: the device vibrates instead of the controller. */
+        public Boolean deviceRumble;
+        /** True: the device vibrates when the controller has no rumble of its own. */
+        public Boolean vibrateFallback;
+        /** Strength (percent) of the device's vibration for this controller. */
+        public Integer deviceRumbleStrength;
+        /** True: use the device's motion sensors when the controller has none. */
+        public Boolean motionFallback;
+        /** Report the controller's battery to the host. */
+        public Boolean batteryReport;
         /** Preferred player slot (0-based) when multiple controllers are used. */
         public Integer playerSlot;
         /** True: don't auto-attach this device at stream start (e.g. built-in pad while an
