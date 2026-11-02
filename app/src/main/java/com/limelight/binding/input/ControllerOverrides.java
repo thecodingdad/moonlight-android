@@ -17,6 +17,9 @@ public final class ControllerOverrides {
         public Integer rumblePercent;
         /** Preferred player slot (0-based) when multiple controllers are used. */
         public Integer playerSlot;
+        /** True: don't auto-attach this device at stream start (e.g. built-in pad while an
+         *  external one is connected). It still attaches if the user actually uses it. */
+        public Boolean skipAutoAttach;
     }
 
     public interface Provider {
@@ -25,6 +28,12 @@ public final class ControllerOverrides {
     }
 
     private static volatile Provider provider;
+
+    /** True: attach the connected controllers at stream start instead of on their first input. */
+    public static volatile boolean attachAtStart;
+
+    /** Descriptor of the controller that started the stream (it becomes player 1); null if none. */
+    public static volatile String starterDescriptor;
 
     private ControllerOverrides() {}
 

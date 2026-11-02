@@ -246,7 +246,49 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
 
     @Override
     public void onInputDeviceAdded(int deviceId) {
-        // Nothing happening here yet
+        // Moonlight Launcher: in attach-at-start mode, a controller plugged in mid-stream joins
+        // the host right away instead of waiting for its first input.
+        if (!ControllerOverrides.attachAtStart) {
+            return;
+        }
+        InputDevice dev = InputDevice.getDevice(deviceId);
+        if (dev != null && isGameControllerDevice(dev)) {
+            autoAttachDevice(dev);
+        }
+    }
+
+    /**
+     * Moonlight Launcher: attach the already-connected controllers now (at stream start) instead
+     * of waiting for each one's first input, so the player that started the stream is live at once.
+     * Honours per-device skipAutoAttach (set by the app, e.g. a built-in pad while an external one
+     * is connected). Call once the connection is established.
+     */
+    public void attachInitialControllers() {
+        if (!ControllerOverrides.attachAtStart) {
+            return;
+        }
+        for (int id : InputDevice.getDeviceIds()) {
+            InputDevice dev = InputDevice.getDevice(id);
+            if (dev != null && isGameControllerDevice(dev)) {
+                autoAttachDevice(dev);
+            }
+        }
+    }
+
+    private void autoAttachDevice(InputDevice dev) {
+        ControllerOverrides.Override o = ControllerOverrides.get(dev);
+        if (o != null && Boolean.TRUE.equals(o.skipAutoAttach)) {
+            return;
+        }
+        InputDeviceContext context = inputDeviceContexts.get(dev.getId());
+        if (context == null) {
+            context = createInputDeviceContextForDevice(dev);
+            inputDeviceContexts.put(dev.getId(), context);
+            applyEmbeddedMouse(context);
+        }
+        if (!context.assignedControllerNumber) {
+            assignControllerNumberIfNeeded(context);
+        }
     }
 
     @Override

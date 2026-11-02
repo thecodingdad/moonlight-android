@@ -3736,6 +3736,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 connecting = false;
                 updatePipAutoEnter();
 
+                // Moonlight Launcher: report the already-connected controllers to the host now, so
+                // the player that started the stream works without pressing a button first.
+                controllerHandler.attachInitialControllers();
+
                 framesLost = false;
                 StreamControl.takeAudioDrops();
                 timerHandler.removeCallbacks(qualitySampler);
