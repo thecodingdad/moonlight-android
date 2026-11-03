@@ -18,6 +18,12 @@ public final class StreamControl {
      */
     public static volatile boolean builtInCombos = true;
 
+    /**
+     * The toast that a controller with emulated motion sensors is reported as another type; off
+     * when the embedding app makes that choice per controller itself.
+     */
+    public static volatile boolean controllerTypeToast = true;
+
     /** Shown instead of Artemis' game menu when set (the embedding app's own menu). */
     public static volatile Runnable menuAction;
 
