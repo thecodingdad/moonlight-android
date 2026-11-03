@@ -1411,6 +1411,13 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         // With Android native pointer capture, capture is lost when focus is lost,
         // so it must be requested again when focus is regained.
         inputCaptureProvider.onWindowFocusChanged(hasFocus);
+
+        if (hasFocus && pendingKeyboard != 0) {
+            boolean full = pendingKeyboard == 2;
+            pendingKeyboard = 0;
+            // After the focus change settles, or the keyboard opens for the window that just left.
+            getWindow().getDecorView().postDelayed(() -> { if (full) toggleFullKeyboard(); else toggleKeyboard(); }, 150);
+        }
     }
 
     private boolean isRefreshRateEqualMatch(float refreshRate) {
@@ -4223,7 +4230,28 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         }
     }
 
-    private void applyMouseMode(int mode) {
+    /** Touch mode in use (index of mouse_mode_list), for StreamControl. */
+    int currentMouseMode = 0;
+
+    /** A keyboard asked for while another window had the focus (the embedding app's menu): 1 system, 2 full. */
+    private int pendingKeyboard = 0;
+
+    /** Shows the system (or [full]: Artemis' PC) keyboard as soon as the stream has the focus again. */
+    void requestKeyboard(boolean full) {
+        if (hasWindowFocus()) {
+            if (full) toggleFullKeyboard(); else toggleKeyboard();
+        } else {
+            pendingKeyboard = full ? 2 : 1;
+        }
+    }
+
+    /** Touch modes this display allows (secondary displays: trackpad and off only). */
+    int[] allowedMouseModes() {
+        return isOnExternalDisplay() ? new int[]{2, 3, 4} : new int[]{0, 1, 5, 2, 3, 4};
+    }
+
+    void applyMouseMode(int mode) {
+        currentMouseMode = mode;
         switch (mode) {
             case 0: // Multi-touch
                 prefConfig.enableMultiTouchScreen = true;

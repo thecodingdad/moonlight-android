@@ -37,6 +37,34 @@ public final class StreamControl {
         if (game != null) game.applyMouseEmulation(on);
     }
 
+    /** Touch mode of the running stream (index of mouse_mode_list), -1 without one. */
+    public static int touchMode() {
+        Game game = Game.instance;
+        return game == null ? -1 : game.currentMouseMode;
+    }
+
+    /** Touch modes the running stream's display allows (empty without one). */
+    public static int[] touchModes() {
+        Game game = Game.instance;
+        return game == null ? new int[0] : game.allowedMouseModes();
+    }
+
+    /** Switches the running stream's touch mode for this stream only; false without one. */
+    public static boolean setTouchMode(int mode) {
+        Game game = Game.instance;
+        if (game == null) return false;
+        game.runOnUiThread(() -> game.applyMouseMode(mode));
+        return true;
+    }
+
+    /** Shows the system keyboard ([full]: Artemis' PC keyboard) in the running stream; false without one. */
+    public static boolean showKeyboard(boolean full) {
+        Game game = Game.instance;
+        if (game == null) return false;
+        game.runOnUiThread(() -> game.requestKeyboard(full));
+        return true;
+    }
+
     /** Shows or hides the performance overlay of the running stream; false without one. */
     public static boolean togglePerformanceOverlay() {
         Game game = Game.instance;
