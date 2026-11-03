@@ -267,12 +267,24 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         if (!ControllerOverrides.attachAtStart) {
             return;
         }
+        // In player order: the host (Windows) numbers its virtual pads in the order they arrive,
+        // whatever player number they carry, so player 1 must arrive first.
+        java.util.List<InputDevice> devices = new java.util.ArrayList<>();
         for (int id : InputDevice.getDeviceIds()) {
             InputDevice dev = InputDevice.getDevice(id);
             if (dev != null && isGameControllerDevice(dev)) {
-                autoAttachDevice(dev);
+                devices.add(dev);
             }
         }
+        java.util.Collections.sort(devices, (a, b) -> Integer.compare(playerSlotOf(a), playerSlotOf(b)));
+        for (InputDevice dev : devices) {
+            autoAttachDevice(dev);
+        }
+    }
+
+    private static int playerSlotOf(InputDevice dev) {
+        ControllerOverrides.Override o = ControllerOverrides.get(dev);
+        return o != null && o.playerSlot != null ? o.playerSlot : Integer.MAX_VALUE;
     }
 
     private void autoAttachDevice(InputDevice dev) {
@@ -3267,6 +3279,9 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             return com.limelight.StreamControl.builtInCombos ? mouseEmulationReportPeriod : EMBEDDED_MOUSE_PERIOD_MS;
         }
 
+        /** Smallest stick dead zone of the embedded mouse emulation (a controller set to none). */
+        private static final double EMBEDDED_MOUSE_MIN_DEADZONE = 0.02;
+
         private float mouseRestX, mouseRestY;
         // The pointer moves on its own thread: on the main thread (input, UI) its steps came unevenly.
         private HandlerThread mouseThread;
@@ -3289,10 +3304,15 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
                 return;
             }
             double nx = x / 32766.0, ny = -y / 32766.0;
-            double magnitude = Math.min(1.0, Math.hypot(nx, ny));
-            if (magnitude < 0.02) return;
+            double raw = Math.min(1.0, Math.hypot(nx, ny));
+            // A resting stick that drifts a little must not move the pointer: the controller's own
+            // dead zone (its settings), the rest scaled to the full range so the pointer starts
+            // softly at its edge.
+            double zone = Math.min(0.9, Math.max(EMBEDDED_MOUSE_MIN_DEADZONE, Math.max(leftStickDeadzoneRadius, rightStickDeadzoneRadius)));
+            if (raw < zone) return;
+            double magnitude = (raw - zone) / (1.0 - zone);
             double perSecond = com.limelight.StreamControl.mouseSpeed * Math.pow(magnitude, com.limelight.StreamControl.mouseExponent);
-            double step = perSecond * mouseElapsed / magnitude;
+            double step = perSecond * mouseElapsed / raw;
             mouseRestX += (float) (nx * step);
             mouseRestY += (float) (ny * step);
             short dx = (short) mouseRestX, dy = (short) mouseRestY;
