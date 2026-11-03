@@ -3279,8 +3279,11 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             return com.limelight.StreamControl.builtInCombos ? mouseEmulationReportPeriod : EMBEDDED_MOUSE_PERIOD_MS;
         }
 
-        /** Smallest stick dead zone of the embedded mouse emulation (a controller set to none). */
-        private static final double EMBEDDED_MOUSE_MIN_DEADZONE = 0.02;
+        /**
+         * Smallest stick dead zone of the embedded mouse emulation, as the app's own pointer has it:
+         * a pointer shows a drift a game's dead zone hides.
+         */
+        private static final double EMBEDDED_MOUSE_MIN_DEADZONE = 0.15;
 
         private float mouseRestX, mouseRestY;
         // The pointer moves on its own thread: on the main thread (input, UI) its steps came unevenly.
@@ -3306,7 +3309,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             double nx = x / 32766.0, ny = -y / 32766.0;
             double raw = Math.min(1.0, Math.hypot(nx, ny));
             // A resting stick that drifts a little must not move the pointer: the controller's own
-            // dead zone (its settings), the rest scaled to the full range so the pointer starts
+            // dead zone (its settings, at least the minimum), the rest scaled to the full range so the pointer starts
             // softly at its edge.
             double zone = Math.min(0.9, Math.max(EMBEDDED_MOUSE_MIN_DEADZONE, Math.max(leftStickDeadzoneRadius, rightStickDeadzoneRadius)));
             if (raw < zone) return;
