@@ -101,6 +101,17 @@ public final class StreamControl {
         return audioDrops.getAndSet(0);
     }
 
+    /**
+     * A stream that didn't get going: [stage] that failed (null: the host ended it right at the
+     * start or sent no video), Moonlight's error code. Set: Artemis shows no error dialog and the
+     * stream window closes; the embedding app retries or reports it.
+     */
+    public interface StartFailureListener {
+        void onStartFailed(String stage, int errorCode);
+    }
+
+    public static volatile StartFailureListener startFailureListener;
+
     private StreamControl() {
     }
 }

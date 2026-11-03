@@ -3542,6 +3542,14 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                     displayedFailureDialog = true;
                     LimeLog.severe(stage + " failed: " + errorCode);
 
+                    // Moonlight Launcher: the app retries or reports it in its own design.
+                    StreamControl.StartFailureListener startFailure = StreamControl.startFailureListener;
+                    if (startFailure != null) {
+                        startFailure.onStartFailed(stage, errorCode);
+                        finish();
+                        return;
+                    }
+
                     // If video initialization failed and the surface is still valid, display extra information for the user
                     Surface currentSurface = streamContainer.getSurface();
                     if (stage.contains("video") && currentSurface != null && currentSurface.isValid()) {
@@ -3637,6 +3645,15 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                     displayedFailureDialog = true;
                     LimeLog.severe("Connection terminated: " + errorCode);
                     stopConnection();
+
+                    // Moonlight Launcher: a stream that ended right at its start (or never sent
+                    // video) didn't get going: the app retries or reports it in its own design.
+                    StreamControl.StartFailureListener startFailure = StreamControl.startFailureListener;
+                    if (startFailure != null && (errorCode == MoonBridge.ML_ERROR_UNEXPECTED_EARLY_TERMINATION || errorCode == MoonBridge.ML_ERROR_NO_VIDEO_TRAFFIC)) {
+                        startFailure.onStartFailed(null, errorCode);
+                        finish();
+                        return;
+                    }
 
                     // Display the error dialog if it was an unexpected termination.
                     // Otherwise, just finish the activity immediately.
