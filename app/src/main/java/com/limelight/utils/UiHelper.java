@@ -82,7 +82,10 @@ public class UiHelper {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 // On Android 13, migrate this non-default language setting into the OS native API
                 LocaleManager localeManager = activity.getSystemService(LocaleManager.class);
-                LocaleList systemLocales = localeManager.getSystemLocales();
+                // The app's own language (per-app locale) wins over the device's: updateConfiguration
+                // also sets the process-wide default locale.
+                LocaleList appLocales = localeManager.getApplicationLocales();
+                LocaleList systemLocales = appLocales.isEmpty() ? localeManager.getSystemLocales() : appLocales;
                 if (!systemLocales.isEmpty()) {
                     config.locale = systemLocales.get(0);
                 }
