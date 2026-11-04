@@ -1,3 +1,19 @@
+# Artemis for GameLodge
+
+This is a fork of [Artemis Android](https://github.com/ClassicOldSong/moonlight-android) (Moonlight Noir) with changes for its deep integration into [GameLodge](https://github.com/thecodingdad/gamelodge), a controller-first game launcher. GameLodge embeds it as the streaming core of its Android app; it isn't meant to be used on its own. For a standalone streaming client use [Artemis](https://github.com/ClassicOldSong/moonlight-android) itself.
+
+The changes live on the `launcher` branch and are kept small, so upstream updates merge cleanly:
+
+- Hooks for the embedding app: key intercept, its own in-stream menu instead of the game menu, built-in shortcuts switchable, mouse emulation and performance overlay toggles
+- Controllers attached at stream start in the launcher's player order, with per-controller vibration, motion and battery report settings
+- Mouse emulation driven by the launcher (dead zone, speed curve, smooth pointer)
+- Connection samples, failed stream starts and the touch / keyboard mode reported to and set by the launcher
+- The app's own language kept on Android 13+
+
+Licensed under GPLv3 like Artemis and Moonlight. The original README follows.
+
+---
+
 # Artemis Android
 
 Previously named Moonlight Noir
